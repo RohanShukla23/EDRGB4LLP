@@ -1,0 +1,31 @@
+version: v1
+
+# Target resolution for both RGB and event tensors
+resize:
+  H: 320
+  W: 320
+
+# Event voxel grid settings
+event_encoding: voxel_grid
+bins: 4            # number of temporal bins
+window_ms: 10      # how far back in time to integrate events for each frame
+
+# Normalization
+rgb_norm:
+  mean: [0.485, 0.456, 0.406]
+  std:  [0.229, 0.224, 0.225]
+
+event_norm: none   # we leave event tensors raw for now
+
+# Where processed data will be written in the bucket mount
+bucket_root: /mnt/bucket/event-rgb/processed/v1
+
+# DSEC dataset raw download cache
+raw_local_root: ./raw
+
+# Which side of the DSEC camera to use
+dsec_camera: images_rectified_left
+dsec_events: events_left
+
+# Naming consistency
+label_format: coco  # later we will auto-generate YOLO txt files
