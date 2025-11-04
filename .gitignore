@@ -10,6 +10,8 @@ Env/
 data/
 _out/
 *.zip
+processed/
+raw/
 
 #Misc.
 

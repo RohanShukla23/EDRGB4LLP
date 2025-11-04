@@ -47,3 +47,6 @@ torchvision==0.24.0
 # GCP Storage (for uploading processed data)
 google-cloud-storage==2.18.2
 pyyaml==6.0.2
+
+# For video processing
+opencv-python==4.12.0.88
