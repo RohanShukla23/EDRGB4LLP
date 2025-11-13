@@ -361,11 +361,13 @@ def setup_urban_environment(client, town_name='Town03'):
     
     return world, traffic_vehicles, walker_spawn_points
 
-def run_experiment_on_world(world, spawn_point, config_class, duration_seconds=60):
+def run_experiment_on_world(world, spawn_point, config_class, duration_seconds=60, recorded_controls=None):
     """
     Run experiment using an existing world and fixed spawn point.
-    This enables fair comparison between configurations by ensuring
-    they experience the same traffic and environmental conditions.
+    
+    If recorded_controls is None, this records the vehicle's control inputs.
+    If recorded_controls is provided, this replays those exact controls.
+    This ensures both configurations follow identical trajectories.
     """
     print(f"\n{'='*60}")
     print(f"Running experiment: {config_class.__name__}")
@@ -374,18 +376,51 @@ def run_experiment_on_world(world, spawn_point, config_class, duration_seconds=6
     # Spawn ego vehicle at predetermined location
     vehicle_bp = world.get_blueprint_library().find('vehicle.tesla.model3')
     ego_vehicle = world.spawn_actor(vehicle_bp, spawn_point)
-    ego_vehicle.set_autopilot(True)
+    
+    # Only use autopilot for recording run
+    if recorded_controls is None:
+        ego_vehicle.set_autopilot(True)
 
     # Attach sensor configuration to ego vehicle
     config = config_class(world, ego_vehicle)
 
     start_time = time.time()
     frame_count = 0
+    controls_record = [] if recorded_controls is None else None
 
     try:
         # Run simulation for specified duration
         while time.time() - start_time < duration_seconds:
             world.tick()  # Advance simulation by one step
+            
+            # Record or replay vehicle controls
+            if recorded_controls is None:
+                # Recording mode: capture control inputs from autopilot
+                control = ego_vehicle.get_control()
+                controls_record.append({
+                    'throttle': control.throttle,
+                    'steer': control.steer,
+                    'brake': control.brake,
+                    'hand_brake': control.hand_brake,
+                    'reverse': control.reverse,
+                    'manual_gear_shift': control.manual_gear_shift,
+                    'gear': control.gear
+                })
+            else:
+                # Replay mode: apply recorded control inputs
+                if frame_count < len(recorded_controls):
+                    ctrl = recorded_controls[frame_count]
+                    control = carla.VehicleControl(
+                        throttle=ctrl['throttle'],
+                        steer=ctrl['steer'],
+                        brake=ctrl['brake'],
+                        hand_brake=ctrl['hand_brake'],
+                        reverse=ctrl['reverse'],
+                        manual_gear_shift=ctrl['manual_gear_shift'],
+                        gear=ctrl['gear']
+                    )
+                    ego_vehicle.apply_control(control)
+            
             frame_count += 1
 
             # Print progress every 100 frames
@@ -399,7 +434,7 @@ def run_experiment_on_world(world, spawn_point, config_class, duration_seconds=6
         if ego_vehicle.is_alive:
             ego_vehicle.destroy()
 
-    return config.metrics
+    return config.metrics, controls_record
 
 def save_metrics_to_csv(metrics_dict, output_dir='results'):
     """
@@ -461,25 +496,41 @@ def main():
     # Seed for reproducibility across runs
     random.seed(42)
 
-    # Setup environment once and reuse for both AV configs
-    # This ensures fair comparison with identical traffic patterns
+    print("\n" + "="*60)
+    print("STAGE 1: Recording baseline trajectory")
+    print("="*60)
+    
+    # Setup environment and record the baseline trajectory
     world, traffic_vehicles, pedestrians = setup_urban_environment(client)
-
-    # Choose a deterministic spawn point for the ego vehicle
     spawn_points = world.get_map().get_spawn_points()
     ego_spawn_point = random.choice(spawn_points)
 
-    metrics_dict = {}
-
-    # Run both experiments sequentially on same world/spawn point
-    metrics_dict['Default_RGB_Only'] = run_experiment_on_world(
-        world, ego_spawn_point, DefaultAVConfig, duration_seconds=60
+    # First run: Record the trajectory using DefaultAVConfig
+    metrics_default, recorded_controls = run_experiment_on_world(
+        world, ego_spawn_point, DefaultAVConfig, duration_seconds=60, recorded_controls=None
     )
-    metrics_dict['Fusion_RGB_DVS'] = run_experiment_on_world(
-        world, ego_spawn_point, FusionAVConfig, duration_seconds=60
+    
+    print("\n" + "="*60)
+    print(f"STAGE 2: Resetting world and replaying trajectory")
+    print("="*60)
+    
+    # Clean up the first run
+    for vehicle in traffic_vehicles:
+        if vehicle.is_alive:
+            vehicle.destroy()
+    for walker in pedestrians:
+        if walker.is_alive:
+            walker.destroy()
+    
+    # Reset the environment to exact same initial state
+    world, traffic_vehicles, pedestrians = setup_urban_environment(client)
+    
+    # Second run: Replay exact same trajectory with FusionAVConfig
+    metrics_fusion, _ = run_experiment_on_world(
+        world, ego_spawn_point, FusionAVConfig, duration_seconds=60, recorded_controls=recorded_controls
     )
 
-    # Cleanup traffic and pedestrians after all experiments complete
+    # Final cleanup
     for vehicle in traffic_vehicles:
         if vehicle.is_alive:
             vehicle.destroy()
@@ -488,6 +539,10 @@ def main():
             walker.destroy()
 
     # Save all metrics to CSV files
+    metrics_dict = {
+        'Default_RGB_Only': metrics_default,
+        'Fusion_RGB_DVS': metrics_fusion
+    }
     save_metrics_to_csv(metrics_dict)
 
 if __name__ == '__main__':
