@@ -1,0 +1,2 @@
+Configuration,Avg_Latency_ms,Std_Latency_ms,Max_Latency_ms,Avg_CPU_percent,Avg_Memory_MB,Total_Detections,Avg_Detections_per_frame
+Fusion_RGB_DVS,201.14336694989885,184.7688583564644,1528.001308441162,29.89198606271777,128.2310131750871,1078,3.7560975609756095

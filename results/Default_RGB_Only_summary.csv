@@ -1,0 +1,2 @@
+Configuration,Avg_Latency_ms,Std_Latency_ms,Max_Latency_ms,Avg_CPU_percent,Avg_Memory_MB,Total_Detections,Avg_Detections_per_frame
+Default_RGB_Only,10.026313674205008,1.9094843523009857,44.46101188659668,34.41557572861921,113.56562611980411,3394,1.621595795508839
