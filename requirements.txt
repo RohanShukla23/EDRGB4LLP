@@ -1,6 +1,9 @@
-# Core dependencies - compatible with Python 3.7
+# Core dependencies - target Python 3.8 (CARLA 0.9.15 compatible)
 numpy>=1.21,<1.22
 opencv-python<4.6
+pandas>=1.3,<1.5
+psutil>=5.9,<5.10
+carla==0.9.15
 torch==1.13.1
 torchvision==0.14.1
 tonic
